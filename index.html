@@ -476,7 +476,7 @@
           </div>
           <div style="display:flex; align-items:center; gap:6px; background:#eff6ff; border:1.5px solid #2563eb; padding:5px 12px; border-radius:8px;">
             <span style="font-size:12px; font-weight:700; color:#2563eb;">🗓️ Lọc tháng:</span>
-            <select id="sel_filter_thang" onchange="render()" style="border:none; font-weight:700; font-size:13px; color:#1e3a5f; background:transparent; outline:none; cursor:pointer;">
+            <select id="sel_filter_thang" onchange="chonThangXem(this.value)" style="border:none; font-weight:700; font-size:13px; color:#1e3a5f; background:transparent; outline:none; cursor:pointer;">
               <option value="all">📅 Tất cả các tháng</option>
             </select>
           </div>
@@ -866,39 +866,163 @@ function buTienMat() {
   toast('Đã bù chuẩn ' + fmtMoneyShort(tmCanBu) + ' tiền mặt. Tổng DT đạt đúng: ' + fmtMoneyShort(target) + '! 🎉', 'success');
 }
 
-// UPDATE MONTH SELECTOR
+// TU DONG LUU THANG DANG MO VAO LICH SU DE KHONG BI MAT KHI CHUYEN DOI
+function autoSaveCurrentMonthToHistory() {
+  if (!data || !data.length) return;
+  const cur = detectCurrentMonth();
+  const m = cur.m;
+  const y = cur.y;
+  const mData = data.filter(r => r.ngay && parseInt(r.ngay.split('/')[1], 10) === m);
+  if (!mData.length) return;
+
+  const tTM = mData.reduce((s, r) => s + (r.tm || 0), 0);
+  const tCK = mData.reduce((s, r) => s + (r.ck || 0), 0);
+  const tTong = mData.reduce((s, r) => s + (r.tong || 0), 0);
+  const soBan = mData.filter(r => !r.off).length;
+  const soNghi = mData.filter(r => r.off).length;
+
+  const id = y + '-' + String(m).padStart(2, '0');
+  const history = getHistory();
+  const existIdx = history.findIndex(h => h.id === id);
+
+  const rec = {
+    id: id,
+    ten: 'Tháng ' + String(m).padStart(2, '0') + '/' + y,
+    thang: m,
+    nam: y,
+    quy: Math.ceil(m / 3),
+    soNgayBan: soBan,
+    soNgayNghi: soNghi,
+    tongTM: tTM,
+    tongCK: tCK,
+    tongDT: tTong,
+    thueGTGT: tTong * 0.03,
+    thueTNCN: tTong * 0.015,
+    tongThue: tTong * 0.045,
+    targetValue: targetValue || tTong,
+    data: JSON.parse(JSON.stringify(mData)),
+    time: existIdx >= 0 ? history[existIdx].time : new Date().toLocaleString('vi-VN')
+  };
+
+  if (existIdx >= 0) {
+    history[existIdx] = rec;
+  } else {
+    history.push(rec);
+  }
+  saveHistory(history);
+}
+
+// UPDATE MONTH SELECTOR - HIEN THI DU TOAN BO CAC THANG TRONG LICH SU & TRONG SO
 function updateMonthSelector() {
   const sel = document.getElementById('sel_filter_thang');
   if (!sel) return;
   const currentVal = sel.value;
 
-  const monthsFound = [];
+  const history = getHistory();
+  const monthMap = {};
+
+  // 1. Quet toan bo cac thang da luu trong lich su
+  history.forEach(h => {
+    if (h.thang) {
+      monthMap[h.thang] = {
+        thang: h.thang,
+        nam: h.nam || 2026,
+        ten: h.ten || ('Tháng ' + String(h.thang).padStart(2, '0') + '/2026'),
+        soNgayBan: h.soNgayBan || 0,
+        soNgayNghi: h.soNgayNghi || 0,
+        inHistory: true
+      };
+    }
+  });
+
+  // 2. Quet cac thang dang co trong data
   data.forEach(r => {
     if (r.ngay && r.ngay.includes('/')) {
       const m = parseInt(r.ngay.split('/')[1], 10);
-      if (m >= 1 && m <= 12 && !monthsFound.includes(m)) {
-        monthsFound.push(m);
+      if (m >= 1 && m <= 12) {
+        if (!monthMap[m]) {
+          monthMap[m] = {
+            thang: m,
+            nam: 2026,
+            ten: 'Tháng ' + String(m).padStart(2, '0') + '/2026',
+            inHistory: false
+          };
+        }
       }
     }
   });
-  monthsFound.sort((a,b) => a - b);
 
-  let html = '<option value="all">📅 Tất cả các tháng (' + data.length + ' ngày)</option>';
-  monthsFound.forEach(m => {
+  const sortedMonths = Object.keys(monthMap).map(Number).sort((a,b) => a - b);
+
+  let html = '<option value="all">📅 Tất cả ngày đang mở trên sổ (' + data.length + ' ngày)</option>';
+  sortedMonths.forEach(m => {
+    const info = monthMap[m];
     const mStr = String(m).padStart(2, '0');
     const mDays = data.filter(r => r.ngay && r.ngay.endsWith('/' + mStr));
-    const ban = mDays.filter(r => !r.off).length;
-    const nghi = mDays.filter(r => r.off).length;
-    html += `<option value="${m}">🗓️ Tháng ${mStr} (${mDays.length} ngày: ${ban} bán, ${nghi} nghỉ)</option>`;
+    let label = '';
+    if (mDays.length > 0) {
+      const ban = mDays.filter(r => !r.off).length;
+      const nghi = mDays.filter(r => r.off).length;
+      label = `🗓️ Tháng ${mStr}/2026 (${mDays.length} ngày: ${ban} bán, ${nghi} nghỉ)`;
+    } else if (info.inHistory) {
+      label = `🗓️ Tháng ${mStr}/2026 (${info.soNgayBan} bán, ${info.soNgayNghi} nghỉ - Đã lưu)`;
+    } else {
+      label = `🗓️ Tháng ${mStr}/2026`;
+    }
+    html += `<option value="${m}">${label}</option>`;
   });
   sel.innerHTML = html;
 
-  if (currentVal && (currentVal === 'all' || monthsFound.includes(parseInt(currentVal, 10)))) {
+  if (currentVal && (currentVal === 'all' || sortedMonths.includes(parseInt(currentVal, 10)))) {
     sel.value = currentVal;
-  } else if (monthsFound.length > 0) {
-    sel.value = String(monthsFound[monthsFound.length - 1]);
+  } else if (sortedMonths.length > 0) {
+    const cur = detectCurrentMonth();
+    if (sortedMonths.includes(cur.m)) {
+      sel.value = String(cur.m);
+    } else {
+      sel.value = String(sortedMonths[sortedMonths.length - 1]);
+    }
   } else {
     sel.value = 'all';
+  }
+}
+
+// XU LY KHI NGUOI DUNG CHON THANG TRONG DROPDOWN (TU DONG NAP TU LICH SU NEU CAN)
+function chonThangXem(mVal) {
+  if (mVal === 'all') {
+    render();
+    return;
+  }
+
+  const mNum = parseInt(mVal, 10);
+  const hasInCurrentData = data.some(r => r.ngay && parseInt(r.ngay.split('/')[1], 10) === mNum);
+
+  if (hasInCurrentData) {
+    render();
+    return;
+  }
+
+  // Neu thang nay chua co trong data hien tai, tu dong nap tu lich su!
+  const history = getHistory();
+  const id = '2026-' + String(mNum).padStart(2, '0');
+  const rec = history.find(h => h.id === id || h.thang === mNum);
+
+  if (rec && rec.data && rec.data.length) {
+    autoSaveCurrentMonthToHistory();
+
+    data = JSON.parse(JSON.stringify(rec.data));
+    targetValue = rec.targetValue || rec.tongDT || 0;
+    const inpTgt = document.getElementById('inp_target');
+    if (inpTgt) inpTgt.value = targetValue || '';
+    save();
+
+    const sel = document.getElementById('sel_filter_thang');
+    if (sel) sel.value = String(mNum);
+
+    render();
+    toast('Đã mở dữ liệu ' + rec.ten + ' từ lịch sử! 🎉', 'success');
+  } else {
+    render();
   }
 }
 
