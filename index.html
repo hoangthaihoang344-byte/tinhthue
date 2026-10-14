@@ -369,7 +369,10 @@
             <button class="btn btn-ghost" style="flex:1;" onclick="themNgayNghi()">😴 Nghỉ bán</button>
             <button class="btn btn-ghost" style="flex:1;" onclick="xoaNgay()">✂️ Xóa ngày</button>
             <button class="btn btn-ghost" style="flex:1;" onclick="dienDuNgayTrongThang()" title="Tự động thêm các ngày còn thiếu trong tháng thành ngày nghỉ">🗓️ Điền đủ 30/31 ngày</button>
-            <button class="btn btn-red" onclick="xoaHet()">🗑</button>
+          </div>
+          <div class="btn-group" style="margin-top: 8px;">
+            <button class="btn btn-red" style="flex:1; justify-content:center; font-size:12px;" onclick="xoaThangHienTai()">🗑 Xóa riêng tháng này</button>
+            <button class="btn btn-ghost" style="flex:1; justify-content:center; font-size:12px; color:var(--red); border-color:#fecaca;" onclick="xoaHet()">⚠️ Xóa tất cả các tháng</button>
           </div>
           <div class="btn-group" style="margin-top: 8px;">
             <button class="btn btn-primary btn-full" style="background:#0284c7; justify-content:center;" onclick="showImportModal()">
@@ -396,7 +399,10 @@
           <button class="btn btn-green btn-full btn-lg" onclick="buTienMat()">
             ✨ Bù tiền mặt thông minh
           </button>
-          <p style="font-size: 11px; color: var(--text3); margin-top: 8px; text-align:center;">Hệ thống sẽ phân bổ TM theo trọng số thứ/ngày lễ</p>
+          <button class="btn btn-ghost btn-full" style="margin-top:6px; font-size:12px; border-color:#cbd5e1;" onclick="resetTienMatThang()">
+            🔄 Đưa tiền mặt về 0đ (xóa tiền đã bù)
+          </button>
+          <p style="font-size: 11px; color: var(--text3); margin-top: 6px; text-align:center;">Hệ thống sẽ phân bổ TM theo trọng số thứ/ngày lễ</p>
         </div>
       </div>
 
@@ -809,8 +815,21 @@ function buTienMat() {
   }
 
   if (!targetList.length) { toast('Chưa có ngày nào trong tháng đang chọn!', 'error'); return; }
+  
+  // RESET TIEN MAT CUA CAC NGAY VE 0 TRUOC KHI BU (CHONG CONG DON GAP DOI)
+  targetList.forEach(r => {
+    if (!r.off) {
+      r.tm = 0;
+      r.tong = r.ck;
+    }
+  });
+
   const tongCK = targetList.reduce((s,r)=>s+(r.ck||0), 0);
-  if (tongCK > target) { toast('CK hiện tại đã vượt target rồi!', 'error'); return; }
+  if (tongCK > target) { 
+    toast('CK hiện tại (' + fmtMoneyShort(tongCK) + ') đã vượt target (' + fmtMoneyShort(target) + ') rồi!', 'error'); 
+    save(); render();
+    return; 
+  }
   
   const tmCanBu = target - tongCK;
   const ngayLam = targetList.filter(r=>!r.off);
@@ -822,11 +841,12 @@ function buTienMat() {
   ngayLam.forEach((r,i)=>{
     const alloc = i===ngayLam.length-1 ? con : Math.round(weights[i]/totalW*tmCanBu/1000)*1000;
     con-=alloc;
-    r.tm+=alloc;
-    r.tong=r.tm+r.ck;
+    r.tm = alloc; // GAN CHINH XAC, KHONG DUNG += DE TRANH CONG DON
+    r.tong = r.tm + r.ck;
   });
   targetValue=target;
-  save(); render(); toast('Đã bù '+fmtMoneyShort(tmCanBu)+' tiền mặt cho '+(filterM==='all'?'tất cả':('Tháng '+filterM))+'! 🎉', 'success');
+  save(); render(); 
+  toast('Đã bù chuẩn ' + fmtMoneyShort(tmCanBu) + ' tiền mặt. Tổng DT đạt đúng: ' + fmtMoneyShort(target) + '! 🎉', 'success');
 }
 
 // UPDATE MONTH SELECTOR
@@ -1233,6 +1253,83 @@ function repairHistoryAndData() {
   }
 }
 
+
+// CAC CHUC NANG XOA VA SUA LOI
+function resetTienMatThang() {
+  const sel = document.getElementById('sel_filter_thang');
+  const filterM = sel ? sel.value : 'all';
+  const label = filterM === 'all' ? 'tất cả các tháng' : ('Tháng ' + filterM);
+  
+  if (!confirm('Bạn có muốn đưa toàn bộ TIỀN MẶT của ' + label + ' về 0đ (giữ nguyên số tiền Chuyển Khoản) để bù lại từ đầu không?')) {
+    return;
+  }
+
+  data.forEach(r => {
+    if (!r.ngay || !r.ngay.includes('/')) return;
+    const m = parseInt(r.ngay.split('/')[1], 10);
+    if (filterM === 'all' || m === parseInt(filterM, 10)) {
+      r.tm = 0;
+      r.tong = r.off ? 0 : r.ck;
+    }
+  });
+
+  save();
+  render();
+  toast('Đã đưa tiền mặt của ' + label + ' về 0đ! Bạn có thể nhập Target và bù lại nhé. 🎉', 'success');
+}
+
+function xoaThangHienTai() {
+  const sel = document.getElementById('sel_filter_thang');
+  const filterM = sel ? sel.value : 'all';
+
+  if (filterM === 'all') {
+    toast('Vui lòng chọn 1 tháng cụ thể ở ô "Lọc tháng" phía trên để xóa riêng tháng đó!', 'error');
+    return;
+  }
+
+  const mNum = parseInt(filterM, 10);
+  if (!confirm('Bạn có chắc chắn muốn XÓA SẠCH toàn bộ dữ liệu của THÁNG ' + filterM + ' không?')) {
+    return;
+  }
+
+  data = data.filter(r => {
+    if (!r.ngay || !r.ngay.includes('/')) return true;
+    return parseInt(r.ngay.split('/')[1], 10) !== mNum;
+  });
+  save();
+
+  let history = getHistory();
+  const id = '2026-' + String(mNum).padStart(2, '0');
+  history = history.filter(h => h.id !== id && h.thang !== mNum);
+  saveHistory(history);
+
+  render();
+  renderQuy();
+  toast('Đã xóa sạch dữ liệu Tháng ' + filterM + '! Bạn có thể nạp lại dữ liệu mới.', 'success');
+}
+
+function xoaThangKhoiQuy(id, thangStr) {
+  if (!confirm('Bạn có chắc chắn muốn xóa dữ liệu của ' + thangStr + ' không?')) {
+    return;
+  }
+  const parts = id.split('-');
+  const mNum = parseInt(parts[1], 10);
+
+  data = data.filter(r => {
+    if (!r.ngay || !r.ngay.includes('/')) return true;
+    return parseInt(r.ngay.split('/')[1], 10) !== mNum;
+  });
+  save();
+
+  let history = getHistory();
+  history = history.filter(h => h.id !== id && h.thang !== mNum);
+  saveHistory(history);
+
+  render();
+  renderQuy();
+  toast('Đã xóa sạch dữ liệu ' + thangStr + '!', 'success');
+}
+
 // LICH SU CAC THANG (QUAN LY THEO QUY)
 function getHistory() {
   return JSON.parse(localStorage.getItem('hnq_history') || '[]');
@@ -1517,6 +1614,7 @@ function renderQuy() {
       <td class="money" style="color:var(--red); font-weight:700;">${fmtMoney(r.thue)}</td>
       <td>
         <button class="btn btn-ghost" style="padding:4px 8px; font-size:11px;" onclick="moLaiThang('${r.id}')">📥 Sửa</button>
+        <button class="btn btn-red" style="padding:4px 8px; font-size:11px; margin-left:4px;" onclick="xoaThangKhoiQuy('${r.id}', '${r.thangStr}')">🗑 Xóa</button>
       </td>
     </tr>`;
   }).join('');
