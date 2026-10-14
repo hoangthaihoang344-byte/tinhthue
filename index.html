@@ -462,10 +462,18 @@
           <h2>Bảng Kê Doanh Thu</h2>
           <span style="margin-left:auto; font-size:12px; color:var(--text3);" id="row_count">0 ngày</span>
         </div>
-        <div class="tabs" style="margin:12px 16px -4px;">
-          <button class="tab-btn active" onclick="switchTab('table', this)">📊 Bảng kê</button>
-          <button class="tab-btn" onclick="switchTab('preview', this)">📄 Bản in tháng</button>
-          <button class="tab-btn" onclick="switchTab('quy', this)">🏛️ Tính theo Quý</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin:12px 16px -2px; gap:10px; flex-wrap:wrap;">
+          <div class="tabs" style="margin:0; flex:1; min-width:300px;">
+            <button class="tab-btn active" onclick="switchTab('table', this)">📊 Bảng kê</button>
+            <button class="tab-btn" onclick="switchTab('preview', this)">📄 Bản in tháng</button>
+            <button class="tab-btn" onclick="switchTab('quy', this)">🏛️ Tính theo Quý</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; background:#eff6ff; border:1.5px solid #2563eb; padding:5px 12px; border-radius:8px;">
+            <span style="font-size:12px; font-weight:700; color:#2563eb;">🗓️ Lọc tháng:</span>
+            <select id="sel_filter_thang" onchange="render()" style="border:none; font-weight:700; font-size:13px; color:#1e3a5f; background:transparent; outline:none; cursor:pointer;">
+              <option value="all">📅 Tất cả các tháng</option>
+            </select>
+          </div>
         </div>
         <div class="card-body" style="padding-top: 8px;">
 
@@ -776,12 +784,24 @@ function xoaDong(ngay) {
 function buTienMat() {
   const target = parseFloat(document.getElementById('inp_target').value)||0;
   if (!target) { toast('Nhập số target đi sếp!', 'error'); return; }
-  if (!data.length) { toast('Nhập ngày trước rồi bù sau!', 'error'); return; }
-  const tongCK = data.reduce((s,r)=>s+r.ck, 0);
+  
+  const sel = document.getElementById('sel_filter_thang');
+  const filterM = sel ? sel.value : 'all';
+
+  let targetList = data;
+  if (filterM !== 'all') {
+    const mNum = parseInt(filterM, 10);
+    targetList = data.filter(r => r.ngay && parseInt(r.ngay.split('/')[1], 10) === mNum);
+  }
+
+  if (!targetList.length) { toast('Chưa có ngày nào trong tháng đang chọn!', 'error'); return; }
+  const tongCK = targetList.reduce((s,r)=>s+(r.ck||0), 0);
   if (tongCK > target) { toast('CK hiện tại đã vượt target rồi!', 'error'); return; }
+  
   const tmCanBu = target - tongCK;
-  const ngayLam = data.filter(r=>!r.off);
-  if (!ngayLam.length) { toast('Không có ngày bán nào!', 'error'); return; }
+  const ngayLam = targetList.filter(r=>!r.off);
+  if (!ngayLam.length) { toast('Không có ngày bán nào trong tháng này!', 'error'); return; }
+  
   const weights = ngayLam.map(r=>getDayWeight(r.ngay));
   const totalW = weights.reduce((a,b)=>a+b,0);
   let con=tmCanBu;
@@ -792,17 +812,68 @@ function buTienMat() {
     r.tong=r.tm+r.ck;
   });
   targetValue=target;
-  save(); render(); toast('Đã bù '+fmtMoneyShort(tmCanBu)+' tiền mặt thông minh! 🎉', 'success');
+  save(); render(); toast('Đã bù '+fmtMoneyShort(tmCanBu)+' tiền mặt cho '+(filterM==='all'?'tất cả':('Tháng '+filterM))+'! 🎉', 'success');
+}
+
+// UPDATE MONTH SELECTOR
+function updateMonthSelector() {
+  const sel = document.getElementById('sel_filter_thang');
+  if (!sel) return;
+  const currentVal = sel.value;
+
+  const monthsFound = [];
+  data.forEach(r => {
+    if (r.ngay && r.ngay.includes('/')) {
+      const m = parseInt(r.ngay.split('/')[1], 10);
+      if (m >= 1 && m <= 12 && !monthsFound.includes(m)) {
+        monthsFound.push(m);
+      }
+    }
+  });
+  monthsFound.sort((a,b) => a - b);
+
+  let html = '<option value="all">📅 Tất cả các tháng (' + data.length + ' ngày)</option>';
+  monthsFound.forEach(m => {
+    const mStr = String(m).padStart(2, '0');
+    const mDays = data.filter(r => r.ngay && r.ngay.endsWith('/' + mStr));
+    const ban = mDays.filter(r => !r.off).length;
+    const nghi = mDays.filter(r => r.off).length;
+    html += `<option value="${m}">🗓️ Tháng ${mStr} (${mDays.length} ngày: ${ban} bán, ${nghi} nghỉ)</option>`;
+  });
+  sel.innerHTML = html;
+
+  if (currentVal && (currentVal === 'all' || monthsFound.includes(parseInt(currentVal, 10)))) {
+    sel.value = currentVal;
+  } else if (monthsFound.length > 0) {
+    sel.value = String(monthsFound[monthsFound.length - 1]);
+  } else {
+    sel.value = 'all';
+  }
 }
 
 // RENDER
 function render() {
   data.sort((a,b)=>sortKey(a)-sortKey(b));
+
+  updateMonthSelector();
+
+  const sel = document.getElementById('sel_filter_thang');
+  const filterM = sel ? sel.value : 'all';
+
+  let displayData = data;
+  if (filterM !== 'all') {
+    const mNum = parseInt(filterM, 10);
+    displayData = data.filter(r => {
+      if (!r.ngay || !r.ngay.includes('/')) return false;
+      return parseInt(r.ngay.split('/')[1], 10) === mNum;
+    });
+  }
+
   const tbody = document.getElementById('table_body');
-  if (!data.length) {
-    tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="icon">📝</div><p>Chưa có dữ liệu. Nhập ngày và doanh thu bên trái để bắt đầu.</p></div></td></tr>`;
+  if (!displayData.length) {
+    tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="icon">📝</div><p>Chưa có dữ liệu cho tháng này. Nhập ngày và doanh thu bên trái để bắt đầu.</p></div></td></tr>`;
   } else {
-    tbody.innerHTML = data.map(r=>{
+    tbody.innerHTML = displayData.map(r=>{
       if (r.off) return `<tr>
         <td><strong>${r.ngay}</strong></td>
         <td><span class="badge badge-off">😴 Nghỉ</span></td>
@@ -820,14 +891,16 @@ function render() {
       </tr>`;
     }).join('');
   }
-  const soNgayBan = data.filter(r => !r.off).length;
-  const soNgayNghi = data.filter(r => r.off).length;
-  document.getElementById('row_count').textContent = data.length + ' ngày (' + soNgayBan + ' bán, ' + soNgayNghi + ' nghỉ)';
 
-  // SUMMARY
-  const tTM=data.reduce((s,r)=>s+r.tm,0);
-  const tCK=data.reduce((s,r)=>s+r.ck,0);
-  const tTong=data.reduce((s,r)=>s+r.tong,0);
+  const soNgayBan = displayData.filter(r => !r.off).length;
+  const soNgayNghi = displayData.filter(r => r.off).length;
+  const labelThang = filterM === 'all' ? 'Tất cả' : ('Tháng ' + String(filterM).padStart(2, '0'));
+  document.getElementById('row_count').textContent = labelThang + ': ' + displayData.length + ' ngày (' + soNgayBan + ' bán, ' + soNgayNghi + ' nghỉ)';
+
+  // SUMMARY tính theo tháng đang chọn
+  const tTM=displayData.reduce((s,r)=>s+(r.tm||0),0);
+  const tCK=displayData.reduce((s,r)=>s+(r.ck||0),0);
+  const tTong=displayData.reduce((s,r)=>s+(r.tong||0),0);
   document.getElementById('sum_tm').textContent=fmtMoneyShort(tTM);
   document.getElementById('sum_ck').textContent=fmtMoneyShort(tCK);
   document.getElementById('sum_tong').textContent=fmtMoneyShort(tTong);
@@ -846,22 +919,23 @@ function render() {
   }
 
   // PREVIEW TEXT
-  let txt='BẢNG KÊ DOANH THU HỒ NGỌC QUÁN\n'+'='.repeat(55)+'\n';
-  data.forEach(r=>{
+  const headerThang = filterM === 'all' ? 'TỔNG HỢP' : ('THÁNG ' + String(filterM).padStart(2, '0') + '/2026');
+  let txt=`BẢNG KÊ DOANH THU ${headerThang} - HỒ NGỌC QUÁN\n`+'='.repeat(55)+'\n';
+  displayData.forEach(r=>{
     if(r.off) { txt+=`Ngày ${r.ngay}: NGHỈ BÁN\n`; return; }
     const t=getDayType(r.ngay);
     const tag=t==='saturday'?' (T7)':t==='sunday'?' (CN)':t==='holiday'?' (LỄ)':'';
     txt+=`Ngày ${r.ngay}${tag}: TM ${r.tm.toLocaleString('vi-VN')}đ | CK ${r.ck.toLocaleString('vi-VN')}đ => Tổng: ${r.tong.toLocaleString('vi-VN')}đ\n`;
   });
   txt+='='.repeat(55)+'\n';
-  txt+=`CHỐT SỔ THÁNG:\n`;
+  txt+=`CHỐT SỔ ${headerThang}:\n`;
+  txt+=`- Số ngày mở bán: ${soNgayBan} ngày\n`;
+  txt+=`- Số ngày nghỉ: ${soNgayNghi} ngày\n`;
   txt+=`- Tổng Tiền Mặt: ${tTM.toLocaleString('vi-VN')} đ\n`;
   txt+=`- Tổng Chuyển Khoản: ${tCK.toLocaleString('vi-VN')} đ\n`;
   txt+=`► TỔNG DOANH THU: ${tTong.toLocaleString('vi-VN')} đ\n`;
   txt+=`- Thuế GTGT (3%): ${(tTong*0.03).toLocaleString('vi-VN')} đ\n`;
   txt+=`- Thuế TNCN (1.5%): ${(tTong*0.015).toLocaleString('vi-VN')} đ\n`;
-  txt+=`- Số ngày mở bán: ${soNgayBan} ngày\n`;
-  txt+=`- Số ngày nghỉ: ${soNgayNghi} ngày\n`;
   txt+=`- Tổng thuế nộp: ${(tTong*0.045).toLocaleString('vi-VN')} đ\n`;
   document.getElementById('preview_text').textContent=txt;
 }
@@ -1120,6 +1194,10 @@ function saveHistory(list) {
 }
 
 function detectCurrentMonth() {
+  const sel = document.getElementById('sel_filter_thang');
+  if (sel && sel.value !== 'all') {
+    return { m: parseInt(sel.value, 10), y: 2026 };
+  }
   if (!data.length) return { m: new Date().getMonth() + 1, y: 2026 };
   const mCount = {};
   data.forEach(r => {
