@@ -741,7 +741,8 @@ function themNgay() {
   const exist = data.findIndex(r=>r.ngay===ngay);
   if (exist>=0) { data.splice(exist,1); }
   data.push({ngay, tm, ck, tong:tm+ck, off:false});
-  save(); render();
+  save(); repairHistoryAndData();
+render();
   document.getElementById('inp_ngay').value='';
   document.getElementById('inp_tm').value='';
   document.getElementById('inp_ck').value='';
@@ -771,8 +772,21 @@ function xoaNgay() {
 }
 
 function xoaHet() {
-  if (!confirm('Xóa sạch toàn bộ dữ liệu? Không thể hoàn tác!')) return;
-  data=[]; save(); render(); toast('Đã xóa sạch!');
+  const sel = document.getElementById('sel_filter_thang');
+  const filterM = sel ? sel.value : 'all';
+
+  if (filterM !== 'all') {
+    const choice = confirm('Bạn đang xem Tháng ' + filterM + '.\n- Bấm OK để XÓA RIÊNG THÁNG ' + filterM + '.\n- Bấm Cancel nếu không muốn xóa.');
+    if (!choice) return;
+    const mNum = parseInt(filterM, 10);
+    data = data.filter(r => !r.ngay || parseInt(r.ngay.split('/')[1], 10) !== mNum);
+    save(); render();
+    toast('Đã xóa sạch dữ liệu Tháng ' + filterM + '!');
+  } else {
+    if (!confirm('Xóa sạch toàn bộ dữ liệu tất cả các tháng? Không thể hoàn tác!')) return;
+    data = []; save(); render();
+    toast('Đã xóa sạch toàn bộ!');
+  }
 }
 
 function xoaDong(ngay) {
@@ -1184,6 +1198,41 @@ function dienDuNgayTrongThang(targetData) {
   return added;
 }
 
+
+// TU DONG SUA VA LAM SACH DU LIEU CAC THANG TRONG LICH SU
+function repairHistoryAndData() {
+  let history = getHistory();
+  let changed = false;
+
+  history.forEach(rec => {
+    const m = rec.thang;
+    if (rec.data && rec.data.length) {
+      // Loc chi giu lai ngay dung thang m
+      const filtered = rec.data.filter(r => {
+        if (!r.ngay || !r.ngay.includes('/')) return false;
+        return parseInt(r.ngay.split('/')[1], 10) === m;
+      });
+      if (filtered.length !== rec.data.length || rec.soNgayBan !== filtered.filter(r => !r.off).length) {
+        rec.data = filtered;
+        rec.tongTM = filtered.reduce((s, r) => s + (r.tm || 0), 0);
+        rec.tongCK = filtered.reduce((s, r) => s + (r.ck || 0), 0);
+        rec.tongDT = filtered.reduce((s, r) => s + (r.tong || 0), 0);
+        rec.thueGTGT = rec.tongDT * 0.03;
+        rec.thueTNCN = rec.tongDT * 0.015;
+        rec.tongThue = rec.tongDT * 0.045;
+        rec.soNgayBan = filtered.filter(r => !r.off).length;
+        rec.soNgayNghi = filtered.filter(r => r.off).length;
+        changed = true;
+      }
+    }
+  });
+
+  if (changed) {
+    saveHistory(history);
+    console.log('Da tu dong sua va tinh lai lich su chuan cho tung thang!');
+  }
+}
+
 // LICH SU CAC THANG (QUAN LY THEO QUY)
 function getHistory() {
   return JSON.parse(localStorage.getItem('hnq_history') || '[]');
@@ -1223,23 +1272,39 @@ function luuVaoLichSu() {
     return;
   }
   const cur = detectCurrentMonth();
-  const defaultName = 'Tháng ' + String(cur.m).padStart(2, '0') + '/' + cur.y;
+  const m = cur.m;
+  const y = cur.y;
+
+  // LOC CHINH XAC DU LIEU RIENG CUA THANG m (KHONG BI CONG DON CAC THANG KHAC)
+  const mData = data.filter(r => {
+    if (!r.ngay || !r.ngay.includes('/')) return false;
+    return parseInt(r.ngay.split('/')[1], 10) === m;
+  });
+
+  if (!mData.length) {
+    toast('Không tìm thấy dữ liệu của Tháng ' + m + ' để lưu!', 'error');
+    return;
+  }
+
+  const defaultName = 'Tháng ' + String(m).padStart(2, '0') + '/' + y;
   const ten = prompt('Đặt tên cho bản ghi tháng này để lưu vào lịch sử:', defaultName);
   if (!ten) return;
 
-  const tTM = data.reduce((s, r) => s + (r.tm || 0), 0);
-  const tCK = data.reduce((s, r) => s + (r.ck || 0), 0);
-  const tTong = data.reduce((s, r) => s + (r.tong || 0), 0);
-  const quy = Math.ceil(cur.m / 3);
+  const tTM = mData.reduce((s, r) => s + (r.tm || 0), 0);
+  const tCK = mData.reduce((s, r) => s + (r.ck || 0), 0);
+  const tTong = mData.reduce((s, r) => s + (r.tong || 0), 0);
+  const soBan = mData.filter(r => !r.off).length;
+  const soNghi = mData.filter(r => r.off).length;
+  const quy = Math.ceil(m / 3);
 
   const rec = {
-    id: cur.y + '-' + String(cur.m).padStart(2, '0'),
+    id: y + '-' + String(m).padStart(2, '0'),
     ten: ten.trim(),
-    thang: cur.m,
-    nam: cur.y,
+    thang: m,
+    nam: y,
     quy: quy,
-    soNgayBan: data.filter(r => !r.off).length,
-    soNgayNghi: data.filter(r => r.off).length,
+    soNgayBan: soBan,
+    soNgayNghi: soNghi,
     tongTM: tTM,
     tongCK: tCK,
     tongDT: tTong,
@@ -1247,14 +1312,14 @@ function luuVaoLichSu() {
     thueTNCN: tTong * 0.015,
     tongThue: tTong * 0.045,
     targetValue: targetValue || 0,
-    data: JSON.parse(JSON.stringify(data)),
+    data: JSON.parse(JSON.stringify(mData)),
     time: new Date().toLocaleString('vi-VN')
   };
 
   const history = getHistory();
   const existIdx = history.findIndex(h => h.id === rec.id || h.ten === rec.ten);
   if (existIdx >= 0) {
-    if (!confirm('Bản ghi "' + history[existIdx].ten + '" đã có trong lịch sử. Bạn có muốn ghi đè cập nhật không?')) {
+    if (!confirm('Bản ghi "' + history[existIdx].ten + '" đã có trong lịch sử. Bạn có muốn cập nhật lại không?')) {
       return;
     }
     history[existIdx] = rec;
@@ -1263,7 +1328,7 @@ function luuVaoLichSu() {
   }
 
   saveHistory(history);
-  toast('Đã lưu thành công "' + rec.ten + '" vào lịch sử! 🎉', 'success');
+  toast('Đã lưu thành công "' + rec.ten + '" (chuẩn ' + soBan + ' ngày bán) vào lịch sử! 🎉', 'success');
   renderQuy();
 }
 
@@ -1354,18 +1419,37 @@ function renderQuy() {
     const id = selNam + '-' + String(m).padStart(2, '0');
     let rec = history.find(h => h.id === id);
 
-    if (!rec && data.length) {
-      const cur = detectCurrentMonth();
-      if (cur.m === m && cur.y === selNam) {
-        const tTM = data.reduce((s, r) => s + (r.tm || 0), 0);
-        const tCK = data.reduce((s, r) => s + (r.ck || 0), 0);
-        const tTong = data.reduce((s, r) => s + (r.tong || 0), 0);
+    // Neu ban ghi lich su co chua ngay thang khac, loc lai ngay lap tuc
+    if (rec && rec.data && rec.data.length) {
+      const mData = rec.data.filter(r => r.ngay && parseInt(r.ngay.split('/')[1], 10) === m);
+      const tTM = mData.reduce((s, r) => s + (r.tm || 0), 0);
+      const tCK = mData.reduce((s, r) => s + (r.ck || 0), 0);
+      const tTong = mData.reduce((s, r) => s + (r.tong || 0), 0);
+      const soBan = mData.filter(r => !r.off).length;
+      rec = {
+        ...rec,
+        soNgayBan: soBan,
+        tongTM: tTM,
+        tongCK: tCK,
+        tongDT: tTong,
+        thueGTGT: tTong * 0.03,
+        thueTNCN: tTong * 0.015,
+        tongThue: tTong * 0.045
+      };
+    } else if (!rec && data.length) {
+      // Neu chua luu lich su nhung dang co du lieu cua thang m tren so
+      const mData = data.filter(r => r.ngay && parseInt(r.ngay.split('/')[1], 10) === m);
+      if (mData.length > 0) {
+        const tTM = mData.reduce((s, r) => s + (r.tm || 0), 0);
+        const tCK = mData.reduce((s, r) => s + (r.ck || 0), 0);
+        const tTong = mData.reduce((s, r) => s + (r.tong || 0), 0);
+        const soBan = mData.filter(r => !r.off).length;
         rec = {
           id: id,
           ten: 'Tháng ' + String(m).padStart(2,'0') + '/' + selNam + ' (Đang mở)',
           thang: m,
           nam: selNam,
-          soNgayBan: data.filter(r => !r.off).length,
+          soNgayBan: soBan,
           tongTM: tTM,
           tongCK: tCK,
           tongDT: tTong,
