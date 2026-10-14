@@ -368,6 +368,7 @@
           <div class="btn-group" style="margin-top: 8px;">
             <button class="btn btn-ghost" style="flex:1;" onclick="themNgayNghi()">😴 Nghỉ bán</button>
             <button class="btn btn-ghost" style="flex:1;" onclick="xoaNgay()">✂️ Xóa ngày</button>
+            <button class="btn btn-ghost" style="flex:1;" onclick="dienDuNgayTrongThang()" title="Tự động thêm các ngày còn thiếu trong tháng thành ngày nghỉ">🗓️ Điền đủ 30/31 ngày</button>
             <button class="btn btn-red" onclick="xoaHet()">🗑</button>
           </div>
           <div class="btn-group" style="margin-top: 8px;">
@@ -463,7 +464,8 @@
         </div>
         <div class="tabs" style="margin:12px 16px -4px;">
           <button class="tab-btn active" onclick="switchTab('table', this)">📊 Bảng kê</button>
-          <button class="tab-btn" onclick="switchTab('preview', this)">📄 Bản in</button>
+          <button class="tab-btn" onclick="switchTab('preview', this)">📄 Bản in tháng</button>
+          <button class="tab-btn" onclick="switchTab('quy', this)">🏛️ Tính theo Quý</button>
         </div>
         <div class="card-body" style="padding-top: 8px;">
 
@@ -494,8 +496,84 @@
 
           <div id="tab_preview" class="tab-content">
             <div class="preview-area" id="preview_text">Chưa có dữ liệu...</div>
-            <div class="btn-group">
+            <div class="btn-group" style="gap:8px; flex-wrap:wrap;">
               <button class="btn btn-primary" onclick="copyZalo()">📋 Copy bản in</button>
+              <button class="btn btn-green" onclick="luuVaoLichSu()">💾 Lưu vào lịch sử</button>
+              <button class="btn btn-ghost" onclick="xemLichSu()">📜 Danh sách các tháng đã lưu</button>
+            </div>
+          </div>
+
+          <!-- TAB TINH THEO QUY -->
+          <div id="tab_quy" class="tab-content">
+            <div style="background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="font-weight:700; font-size:13px; color:var(--text);">CHỌN QUÝ TÍNH THUẾ:</span>
+                <select id="sel_quy" onchange="renderQuy()" style="padding:7px 10px; border:1.5px solid var(--border); border-radius:8px; font-weight:600; font-size:13px; outline:none; background:white;">
+                  <option value="1">Quý 1 (Tháng 1 - 2 - 3)</option>
+                  <option value="2">Quý 2 (Tháng 4 - 5 - 6)</option>
+                  <option value="3" selected>Quý 3 (Tháng 7 - 8 - 9)</option>
+                  <option value="4">Quý 4 (Tháng 10 - 11 - 12)</option>
+                </select>
+                <select id="sel_nam" onchange="renderQuy()" style="padding:7px 10px; border:1.5px solid var(--border); border-radius:8px; font-weight:600; font-size:13px; outline:none; background:white;">
+                  <option value="2025">Năm 2025</option>
+                  <option value="2026" selected>Năm 2026</option>
+                  <option value="2027">Năm 2027</option>
+                </select>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-green" onclick="luuThangHienTaiVaoQuy()">📥 Lấy tháng hiện tại vào Quý</button>
+              </div>
+            </div>
+
+            <div class="summary-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+              <div class="stat-card blue">
+                <div class="stat-label">Tiền Mặt Quý</div>
+                <div class="stat-value" id="quy_tm">0đ</div>
+              </div>
+              <div class="stat-card green">
+                <div class="stat-label">Chuyển Khoản Quý</div>
+                <div class="stat-value" id="quy_ck">0đ</div>
+              </div>
+              <div class="stat-card purple">
+                <div class="stat-label">Tổng Doanh Thu Quý</div>
+                <div class="stat-value" id="quy_tong">0đ</div>
+              </div>
+              <div class="stat-card red" style="background:#fee2e2; border-color:#fca5a5;">
+                <div class="stat-label" style="color:#b91c1c; font-weight:700;">TỔNG THUẾ NỘP (4.5%)</div>
+                <div class="stat-value" id="quy_thue" style="color:#b91c1c; font-size:18px;">0đ</div>
+              </div>
+            </div>
+
+            <div class="data-table-wrap" style="margin-bottom:16px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Kỳ Tháng</th>
+                    <th>Ngày Bán</th>
+                    <th>Tiền Mặt</th>
+                    <th>Chuyển Khoản</th>
+                    <th>Tổng Doanh Thu</th>
+                    <th>Thuế GTGT (3%)</th>
+                    <th>Thuế TNCN (1.5%)</th>
+                    <th>Tổng Thuế</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="quy_table_body">
+                </tbody>
+                <tfoot id="quy_table_foot" style="background:var(--surface2); font-weight:700;">
+                </tfoot>
+              </table>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-weight:700; font-size:12px; margin-bottom:6px; display:block; color:var(--text2); text-transform:uppercase;">Bản In Tổng Hợp Thuế Quý (A4 / Zalo):</label>
+              <div class="preview-area" id="quy_preview_text" style="max-height:190px;">Chưa có dữ liệu quý...</div>
+            </div>
+
+            <div class="btn-group" style="gap:8px;">
+              <button class="btn btn-primary" onclick="copyQuyZalo()">📋 Copy báo cáo Quý (Gửi Zalo)</button>
+              <button class="btn btn-ghost" onclick="xuatCSVQuy()">📊 Xuất file Excel (.CSV) Quý</button>
             </div>
           </div>
 
@@ -529,10 +607,16 @@
       </p>
     </div>
 
-    <!-- Tùy chọn xóa cũ -->
+    <!-- Tùy chọn nạp dữ liệu -->
+    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-size: 13px;">
+      <input type="checkbox" id="chk_autofill" style="cursor: pointer;" checked>
+      <label for="chk_autofill" style="margin: 0; cursor: pointer; text-transform: none; font-weight: 600; color: var(--blue);">
+        🗓️ Tự động điền đủ tất cả các ngày trong tháng (ngày thiếu coi là ngày nghỉ)
+      </label>
+    </div>
     <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px;">
       <input type="checkbox" id="chk_overwrite" style="cursor: pointer;">
-      <label for="chk_overwrite" style="margin: 0; cursor: pointer; text-transform: none; font-weight: normal; color: var(--text);">
+      <label for="chk_overwrite" style="margin: 0; cursor: pointer; text-transform: none; font-weight: normal; color: var(--text2);">
         Xóa sạch dữ liệu cũ trước khi nạp mới
       </label>
     </div>
@@ -544,6 +628,21 @@
       <button class="btn btn-ghost btn-full btn-lg" onclick="hideImportModal()">
         Đóng
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div class="modal-overlay" id="history_modal">
+  <div class="modal" style="width: 580px; max-width:95vw;">
+    <h3>📜 Lịch Sử Báo Cáo Các Tháng</h3>
+    <p>Danh sách các tháng đã lưu trữ để tính quý và chỉnh sửa lại:</p>
+
+    <div id="history_list" style="max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-full" onclick="hideHistoryModal()">Đóng</button>
     </div>
   </div>
 </div>
@@ -721,7 +820,9 @@ function render() {
       </tr>`;
     }).join('');
   }
-  document.getElementById('row_count').textContent = data.length+' ngày';
+  const soNgayBan = data.filter(r => !r.off).length;
+  const soNgayNghi = data.filter(r => r.off).length;
+  document.getElementById('row_count').textContent = data.length + ' ngày (' + soNgayBan + ' bán, ' + soNgayNghi + ' nghỉ)';
 
   // SUMMARY
   const tTM=data.reduce((s,r)=>s+r.tm,0);
@@ -759,6 +860,8 @@ function render() {
   txt+=`► TỔNG DOANH THU: ${tTong.toLocaleString('vi-VN')} đ\n`;
   txt+=`- Thuế GTGT (3%): ${(tTong*0.03).toLocaleString('vi-VN')} đ\n`;
   txt+=`- Thuế TNCN (1.5%): ${(tTong*0.015).toLocaleString('vi-VN')} đ\n`;
+  txt+=`- Số ngày mở bán: ${soNgayBan} ngày\n`;
+  txt+=`- Số ngày nghỉ: ${soNgayNghi} ngày\n`;
   txt+=`- Tổng thuế nộp: ${(tTong*0.045).toLocaleString('vi-VN')} đ\n`;
   document.getElementById('preview_text').textContent=txt;
 }
@@ -802,6 +905,7 @@ function switchTab(id, el) {
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab_'+id).classList.add('active');
+  if (id === 'quy') renderQuy();
 }
 
 // TOAST
@@ -914,6 +1018,27 @@ function processImportText() {
     return;
   }
 
+  const chkAutofill = document.getElementById('chk_autofill');
+  const doAutofill = chkAutofill ? chkAutofill.checked : true;
+  if (doAutofill) {
+    const monthCounts = {};
+    items.forEach(r => {
+      const parts = r.ngay.split('/');
+      const m = parseInt(parts[1], 10);
+      if (m >= 1 && m <= 12) monthCounts[m] = (monthCounts[m] || 0) + 1;
+    });
+    for (const mStr in monthCounts) {
+      const m = parseInt(mStr, 10);
+      const maxDays = getDaysInMonth(2026, m);
+      for (let day = 1; day <= maxDays; day++) {
+        const key = String(day).padStart(2, '0') + '/' + String(m).padStart(2, '0');
+        if (!items.some(r => r.ngay === key)) {
+          items.push({ ngay: key, tm: 0, ck: 0, tong: 0, off: true });
+        }
+      }
+    }
+  }
+
   const overwrite = document.getElementById('chk_overwrite').checked;
   if (overwrite) {
     data = [];
@@ -939,6 +1064,381 @@ function processImportText() {
 
 document.getElementById('import_modal').addEventListener('click', function(e){
   if(e.target===this) hideImportModal();
+});
+
+
+// HAM HO TRO THANG & NGAY
+function getDaysInMonth(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+function dienDuNgayTrongThang(targetData) {
+  const dList = targetData || data;
+  if (!dList || !dList.length) {
+    if (!targetData) toast('Chưa có dữ liệu để điền ngày!', 'error');
+    return 0;
+  }
+  const monthMap = {};
+  dList.forEach(r => {
+    if (r.ngay && r.ngay.includes('/')) {
+      const parts = r.ngay.split('/');
+      const m = parseInt(parts[1], 10);
+      if (m >= 1 && m <= 12) monthMap[m] = (monthMap[m] || 0) + 1;
+    }
+  });
+
+  const year = 2026;
+  let added = 0;
+  for (const mStr in monthMap) {
+    const m = parseInt(mStr, 10);
+    const maxDays = getDaysInMonth(year, m);
+    for (let day = 1; day <= maxDays; day++) {
+      const key = String(day).padStart(2, '0') + '/' + String(m).padStart(2, '0');
+      const exist = dList.some(r => r.ngay === key);
+      if (!exist) {
+        dList.push({ ngay: key, tm: 0, ck: 0, tong: 0, off: true });
+        added++;
+      }
+    }
+  }
+
+  if (!targetData) {
+    save();
+    render();
+    toast('Đã bổ sung ' + added + ' ngày nghỉ để đủ các ngày trong tháng! 🎉', 'success');
+  }
+  return added;
+}
+
+// LICH SU CAC THANG (QUAN LY THEO QUY)
+function getHistory() {
+  return JSON.parse(localStorage.getItem('hnq_history') || '[]');
+}
+
+function saveHistory(list) {
+  localStorage.setItem('hnq_history', JSON.stringify(list));
+}
+
+function detectCurrentMonth() {
+  if (!data.length) return { m: new Date().getMonth() + 1, y: 2026 };
+  const mCount = {};
+  data.forEach(r => {
+    if (r.ngay && r.ngay.includes('/')) {
+      const m = parseInt(r.ngay.split('/')[1], 10);
+      if (m >= 1 && m <= 12) mCount[m] = (mCount[m] || 0) + 1;
+    }
+  });
+  let bestM = new Date().getMonth() + 1;
+  let bestCount = 0;
+  for (const m in mCount) {
+    if (mCount[m] > bestCount) {
+      bestCount = mCount[m];
+      bestM = parseInt(m, 10);
+    }
+  }
+  return { m: bestM, y: 2026 };
+}
+
+function luuVaoLichSu() {
+  if (!data.length) {
+    toast('Chưa có dữ liệu để lưu vào lịch sử!', 'error');
+    return;
+  }
+  const cur = detectCurrentMonth();
+  const defaultName = 'Tháng ' + String(cur.m).padStart(2, '0') + '/' + cur.y;
+  const ten = prompt('Đặt tên cho bản ghi tháng này để lưu vào lịch sử:', defaultName);
+  if (!ten) return;
+
+  const tTM = data.reduce((s, r) => s + (r.tm || 0), 0);
+  const tCK = data.reduce((s, r) => s + (r.ck || 0), 0);
+  const tTong = data.reduce((s, r) => s + (r.tong || 0), 0);
+  const quy = Math.ceil(cur.m / 3);
+
+  const rec = {
+    id: cur.y + '-' + String(cur.m).padStart(2, '0'),
+    ten: ten.trim(),
+    thang: cur.m,
+    nam: cur.y,
+    quy: quy,
+    soNgayBan: data.filter(r => !r.off).length,
+    soNgayNghi: data.filter(r => r.off).length,
+    tongTM: tTM,
+    tongCK: tCK,
+    tongDT: tTong,
+    thueGTGT: tTong * 0.03,
+    thueTNCN: tTong * 0.015,
+    tongThue: tTong * 0.045,
+    targetValue: targetValue || 0,
+    data: JSON.parse(JSON.stringify(data)),
+    time: new Date().toLocaleString('vi-VN')
+  };
+
+  const history = getHistory();
+  const existIdx = history.findIndex(h => h.id === rec.id || h.ten === rec.ten);
+  if (existIdx >= 0) {
+    if (!confirm('Bản ghi "' + history[existIdx].ten + '" đã có trong lịch sử. Bạn có muốn ghi đè cập nhật không?')) {
+      return;
+    }
+    history[existIdx] = rec;
+  } else {
+    history.push(rec);
+  }
+
+  saveHistory(history);
+  toast('Đã lưu thành công "' + rec.ten + '" vào lịch sử! 🎉', 'success');
+  renderQuy();
+}
+
+function xemLichSu() {
+  const history = getHistory();
+  const container = document.getElementById('history_list');
+  if (!history.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="icon">📜</div><p>Chưa có tháng nào được lưu. Bạn bấm nút "Lưu vào lịch sử" ở bản in để lưu nhé!</p></div>';
+  } else {
+    history.sort((a,b) => (b.nam * 100 + b.thang) - (a.nam * 100 + a.thang));
+    container.innerHTML = history.map(h => `
+      <div style="background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <div>
+            <strong style="font-size:14px; color:var(--text);">${h.ten}</strong>
+            <span class="badge badge-normal" style="margin-left:6px;">Quý ${h.quy}</span>
+          </div>
+          <span style="font-size:11px; color:var(--text3);">${h.time}</span>
+        </div>
+        <div style="font-size:12px; color:var(--text2); display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:10px;">
+          <div>📅 Bán: <strong>${h.soNgayBan || 0} ngày</strong> | Nghỉ: <strong>${h.soNgayNghi || 0} ngày</strong></div>
+          <div>💰 TM: <strong>${fmtMoneyShort(h.tongTM || 0)}</strong> | CK: <strong>${fmtMoneyShort(h.tongCK || 0)}</strong></div>
+          <div>📈 Doanh thu: <strong style="color:var(--purple);">${(h.tongDT || 0).toLocaleString('vi-VN')}đ</strong></div>
+          <div>🧾 Thuế phải nộp: <strong style="color:var(--red);">${(h.tongThue || 0).toLocaleString('vi-VN')}đ</strong></div>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-primary" style="padding:6px 12px; font-size:12px;" onclick="moLaiThang('${h.id}')">📥 Mở lại để xem &amp; sửa</button>
+          <button class="btn btn-red" style="padding:6px 10px; font-size:12px;" onclick="xoaLichSuThang('${h.id}')">🗑 Xóa</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('history_modal').classList.add('active');
+}
+
+function hideHistoryModal() {
+  document.getElementById('history_modal').classList.remove('active');
+}
+
+function moLaiThang(id) {
+  const history = getHistory();
+  const rec = history.find(h => h.id === id);
+  if (!rec) { toast('Không tìm thấy bản ghi!', 'error'); return; }
+  if (confirm('Bạn có muốn nạp dữ liệu "' + rec.ten + '" vào sổ làm việc hiện tại không?')) {
+    data = JSON.parse(JSON.stringify(rec.data));
+    targetValue = rec.targetValue || 0;
+    save();
+    render();
+    hideHistoryModal();
+    const tabTableBtn = document.querySelectorAll('.tab-btn')[0];
+    switchTab('table', tabTableBtn);
+    toast('Đã nạp lại "' + rec.ten + '" thành công!', 'success');
+  }
+}
+
+function xoaLichSuThang(id) {
+  if (!confirm('Bạn có chắc chắn muốn xóa bản ghi tháng này khỏi lịch sử không?')) return;
+  let history = getHistory();
+  history = history.filter(h => h.id !== id);
+  saveHistory(history);
+  xemLichSu();
+  renderQuy();
+  toast('Đã xóa bản ghi khỏi lịch sử!', 'success');
+}
+
+// TINH TOAN VA TONG HOP QUY (3 THANG)
+function luuThangHienTaiVaoQuy() {
+  luuVaoLichSu();
+  renderQuy();
+}
+
+function renderQuy() {
+  const selQuy = parseInt(document.getElementById('sel_quy').value, 10) || 3;
+  const selNam = parseInt(document.getElementById('sel_nam').value, 10) || 2026;
+
+  const quarterMonths = {
+    1: [1, 2, 3],
+    2: [4, 5, 6],
+    3: [7, 8, 9],
+    4: [10, 11, 12]
+  }[selQuy];
+
+  const history = getHistory();
+  const rows = [];
+  let grandTM = 0, grandCK = 0, grandTong = 0, grandGTGT = 0, grandTNCN = 0, grandThue = 0;
+
+  quarterMonths.forEach(m => {
+    const id = selNam + '-' + String(m).padStart(2, '0');
+    let rec = history.find(h => h.id === id);
+
+    if (!rec && data.length) {
+      const cur = detectCurrentMonth();
+      if (cur.m === m && cur.y === selNam) {
+        const tTM = data.reduce((s, r) => s + (r.tm || 0), 0);
+        const tCK = data.reduce((s, r) => s + (r.ck || 0), 0);
+        const tTong = data.reduce((s, r) => s + (r.tong || 0), 0);
+        rec = {
+          id: id,
+          ten: 'Tháng ' + String(m).padStart(2,'0') + '/' + selNam + ' (Đang mở)',
+          thang: m,
+          nam: selNam,
+          soNgayBan: data.filter(r => !r.off).length,
+          tongTM: tTM,
+          tongCK: tCK,
+          tongDT: tTong,
+          thueGTGT: tTong * 0.03,
+          thueTNCN: tTong * 0.015,
+          tongThue: tTong * 0.045,
+          isCurrent: true
+        };
+      }
+    }
+
+    if (rec) {
+      grandTM += (rec.tongTM || 0);
+      grandCK += (rec.tongCK || 0);
+      grandTong += (rec.tongDT || 0);
+      grandGTGT += (rec.thueGTGT || 0);
+      grandTNCN += (rec.thueTNCN || 0);
+      grandThue += (rec.tongThue || 0);
+
+      rows.push({
+        thangStr: 'Tháng ' + String(m).padStart(2, '0') + '/' + selNam,
+        hasData: true,
+        soNgayBan: rec.soNgayBan || 0,
+        tm: rec.tongTM || 0,
+        ck: rec.tongCK || 0,
+        tong: rec.tongDT || 0,
+        gtgt: rec.thueGTGT || 0,
+        tncn: rec.thueTNCN || 0,
+        thue: rec.tongThue || 0,
+        id: rec.id,
+        isCurrent: rec.isCurrent || false
+      });
+    } else {
+      rows.push({
+        thangStr: 'Tháng ' + String(m).padStart(2, '0') + '/' + selNam,
+        hasData: false,
+        soNgayBan: 0,
+        tm: 0, ck: 0, tong: 0, gtgt: 0, tncn: 0, thue: 0
+      });
+    }
+  });
+
+  document.getElementById('quy_tm').textContent = fmtMoney(grandTM);
+  document.getElementById('quy_ck').textContent = fmtMoney(grandCK);
+  document.getElementById('quy_tong').textContent = fmtMoney(grandTong);
+  document.getElementById('quy_thue').textContent = fmtMoney(grandThue);
+
+  const tbody = document.getElementById('quy_table_body');
+  tbody.innerHTML = rows.map(r => {
+    if (!r.hasData) {
+      return `<tr>
+        <td><strong>${r.thangStr}</strong></td>
+        <td colspan="7" style="color:var(--text3); font-style:italic; text-align:center;">— Chưa có dữ liệu tháng này —</td>
+        <td><button class="btn btn-ghost" style="padding:4px 8px; font-size:11px;" onclick="switchTab('table', document.querySelectorAll('.tab-btn')[0])">➕ Nhập tháng này</button></td>
+      </tr>`;
+    }
+    return `<tr>
+      <td><strong>${r.thangStr}</strong> ${r.isCurrent ? '<span class="badge badge-normal" style="font-size:10px;">Đang mở</span>' : ''}</td>
+      <td><span class="badge badge-normal">${r.soNgayBan} ngày</span></td>
+      <td class="money tm">${fmtMoney(r.tm)}</td>
+      <td class="money ck">${fmtMoney(r.ck)}</td>
+      <td class="money tong">${fmtMoney(r.tong)}</td>
+      <td class="money" style="color:#d97706;">${fmtMoney(r.gtgt)}</td>
+      <td class="money" style="color:#d97706;">${fmtMoney(r.tncn)}</td>
+      <td class="money" style="color:var(--red); font-weight:700;">${fmtMoney(r.thue)}</td>
+      <td>
+        <button class="btn btn-ghost" style="padding:4px 8px; font-size:11px;" onclick="moLaiThang('${r.id}')">📥 Sửa</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const tfoot = document.getElementById('quy_table_foot');
+  tfoot.innerHTML = `<tr>
+    <td style="color:var(--blue); font-size:14px;">TỔNG CỘNG QUÝ ${selQuy}/${selNam}</td>
+    <td>—</td>
+    <td class="money tm" style="font-size:14px;">${fmtMoney(grandTM)}</td>
+    <td class="money ck" style="font-size:14px;">${fmtMoney(grandCK)}</td>
+    <td class="money tong" style="font-size:14px; color:var(--purple);">${fmtMoney(grandTong)}</td>
+    <td class="money" style="font-size:14px; color:#d97706;">${fmtMoney(grandGTGT)}</td>
+    <td class="money" style="font-size:14px; color:#d97706;">${fmtMoney(grandTNCN)}</td>
+    <td class="money" style="font-size:15px; color:var(--red); font-weight:800;">${fmtMoney(grandThue)}</td>
+    <td></td>
+  </tr>`;
+
+  let txt = 'BÁO CÁO THUẾ DOANH THU QUÝ ' + selQuy + '/' + selNam + ' - HỒ NGỌC QUÁN\n';
+  txt += '='.repeat(58) + '\n';
+  rows.forEach((r, idx) => {
+    if (r.hasData) {
+      txt += (idx + 1) + '. ' + r.thangStr + ' (' + r.soNgayBan + ' ngày bán):\n';
+      txt += '   - Tiền Mặt: ' + r.tm.toLocaleString('vi-VN') + ' đ | Chuyển Khoản: ' + r.ck.toLocaleString('vi-VN') + ' đ\n';
+      txt += '   => Doanh Thu: ' + r.tong.toLocaleString('vi-VN') + ' đ | Thuế nộp: ' + r.thue.toLocaleString('vi-VN') + ' đ\n';
+    } else {
+      txt += (idx + 1) + '. ' + r.thangStr + ': [Chưa có dữ liệu]\n';
+    }
+  });
+  txt += '='.repeat(58) + '\n';
+  txt += 'TỔNG KẾT NGHĨA VỤ THUẾ CẢ QUÝ ' + selQuy + '/' + selNam + ' (3 THÁNG):\n';
+  txt += '► Tổng Doanh Thu Tiền Mặt: ' + grandTM.toLocaleString('vi-VN') + ' đ\n';
+  txt += '► Tổng Doanh Thu Chuyển Khoản: ' + grandCK.toLocaleString('vi-VN') + ' đ\n';
+  txt += '►► TỔNG DOANH THU CẢ QUÝ: ' + grandTong.toLocaleString('vi-VN') + ' đ\n';
+  txt += '----------------------------------------------------------\n';
+  txt += '- Thuế GTGT Quý (3%): ' + grandGTGT.toLocaleString('vi-VN') + ' đ\n';
+  txt += '- Thuế TNCN Quý (1.5%): ' + grandTNCN.toLocaleString('vi-VN') + ' đ\n';
+  txt += '►►► TỔNG SỐ THUẾ PHẢI NỘP CẢ QUÝ (4.5%): ' + grandThue.toLocaleString('vi-VN') + ' đ\n';
+
+  document.getElementById('quy_preview_text').textContent = txt;
+}
+
+function copyQuyZalo() {
+  const txt = document.getElementById('quy_preview_text').textContent;
+  navigator.clipboard.writeText(txt).then(() => toast('Đã copy báo cáo Quý! Ra Zalo dán nhé 🎉', 'success')).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    toast('Đã copy báo cáo Quý! Ra Zalo dán nhé 🎉', 'success');
+  });
+}
+
+function xuatCSVQuy() {
+  const selQuy = document.getElementById('sel_quy').value;
+  const selNam = document.getElementById('sel_nam').value;
+  let csv = 'Kỳ Tháng,Số Ngày Bán,Tiền Mặt,Chuyển Khoản,Tổng Doanh Thu,Thuế GTGT (3%),Thuế TNCN (1.5%),Tổng Thuế Phải Nộp\n';
+  
+  const history = getHistory();
+  const quarterMonths = { 1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12] }[selQuy];
+  let grandTM = 0, grandCK = 0, grandTong = 0, grandGTGT = 0, grandTNCN = 0, grandThue = 0;
+
+  quarterMonths.forEach(m => {
+    const id = selNam + '-' + String(m).padStart(2, '0');
+    const rec = history.find(h => h.id === id);
+    if (rec) {
+      grandTM += rec.tongTM; grandCK += rec.tongCK; grandTong += rec.tongDT;
+      grandGTGT += rec.thueGTGT; grandTNCN += rec.thueTNCN; grandThue += rec.tongThue;
+      csv += 'Tháng ' + m + '/' + selNam + ',' + rec.soNgayBan + ',' + rec.tongTM + ',' + rec.tongCK + ',' + rec.tongDT + ',' + rec.thueGTGT + ',' + rec.thueTNCN + ',' + rec.tongThue + '\n';
+    } else {
+      csv += 'Tháng ' + m + '/' + selNam + ',0,0,0,0,0,0,0\n';
+    }
+  });
+
+  csv += 'TỔNG CỘNG QUÝ ' + selQuy + '/' + selNam + ',,' + grandTM + ',' + grandCK + ',' + grandTong + ',' + grandGTGT + ',' + grandTNCN + ',' + grandThue + '\n';
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'bao_cao_quy_' + selQuy + '_nam_' + selNam + '.csv';
+  a.click();
+  toast('Đã xuất file CSV báo cáo Quý!', 'success');
+}
+
+// CLOSE MODAL EVENT FOR HISTORY
+document.getElementById('history_modal').addEventListener('click', function(e){
+  if(e.target===this) hideHistoryModal();
 });
 
 </script>
