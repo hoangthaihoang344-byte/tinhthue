@@ -585,8 +585,10 @@
               <div class="preview-area" id="quy_preview_text" style="max-height:190px;">Chưa có dữ liệu quý...</div>
             </div>
 
-            <div class="btn-group" style="gap:8px;">
+            <div class="btn-group" style="gap:8px; flex-wrap:wrap;">
               <button class="btn btn-primary" onclick="copyQuyZalo()">📋 Copy báo cáo Quý (Gửi Zalo)</button>
+              <button class="btn btn-green" onclick="luuQuyVaoLichSu()">💾 Lưu Quý này vào lịch sử</button>
+              <button class="btn btn-ghost" onclick="xemLichSuQuy()">📜 Lịch sử các Quý đã đóng</button>
               <button class="btn btn-ghost" onclick="xuatCSVQuy()">📊 Xuất file Excel (.CSV) Quý</button>
             </div>
           </div>
@@ -657,6 +659,21 @@
 
     <div class="modal-actions">
       <button class="btn btn-ghost btn-full" onclick="hideHistoryModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUARTER HISTORY MODAL -->
+<div class="modal-overlay" id="quarter_history_modal">
+  <div class="modal" style="width: 650px; max-width:95vw;">
+    <h3>📜 Lịch Sử Đóng Thuế Các Quý</h3>
+    <p>Danh sách các Quý đã chốt thuế để bạn dễ dàng tìm lại và kiểm tra đối chiếu:</p>
+
+    <div id="quarter_history_list" style="max-height:380px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-full" onclick="hideQuarterHistoryModal()">Đóng</button>
     </div>
   </div>
 </div>
@@ -1695,6 +1712,244 @@ function xuatCSVQuy() {
   a.click();
   toast('Đã xuất file CSV báo cáo Quý!', 'success');
 }
+
+
+// LICH SU DONG THUE THEO QUY
+function getQuarterHistory() {
+  return JSON.parse(localStorage.getItem('hnq_quarter_history') || '[]');
+}
+
+function saveQuarterHistory(list) {
+  localStorage.setItem('hnq_quarter_history', JSON.stringify(list));
+}
+
+function luuQuyVaoLichSu() {
+  const selQuy = parseInt(document.getElementById('sel_quy').value, 10) || 3;
+  const selNam = parseInt(document.getElementById('sel_nam').value, 10) || 2026;
+
+  const quarterMonths = {
+    1: [1, 2, 3],
+    2: [4, 5, 6],
+    3: [7, 8, 9],
+    4: [10, 11, 12]
+  }[selQuy];
+
+  const history = getHistory();
+  const monthDetails = [];
+  let grandTM = 0, grandCK = 0, grandTong = 0, grandGTGT = 0, grandTNCN = 0, grandThue = 0;
+  let hasAnyData = false;
+
+  quarterMonths.forEach(m => {
+    const id = selNam + '-' + String(m).padStart(2, '0');
+    let rec = history.find(h => h.id === id);
+
+    if (rec && rec.data && rec.data.length) {
+      const mData = rec.data.filter(r => r.ngay && parseInt(r.ngay.split('/')[1], 10) === m);
+      const tTM = mData.reduce((s, r) => s + (r.tm || 0), 0);
+      const tCK = mData.reduce((s, r) => s + (r.ck || 0), 0);
+      const tTong = mData.reduce((s, r) => s + (r.tong || 0), 0);
+      const soBan = mData.filter(r => !r.off).length;
+      const soNghi = mData.filter(r => r.off).length;
+
+      grandTM += tTM;
+      grandCK += tCK;
+      grandTong += tTong;
+      grandGTGT += tTong * 0.03;
+      grandTNCN += tTong * 0.015;
+      grandThue += tTong * 0.045;
+      hasAnyData = true;
+
+      monthDetails.push({
+        thang: m,
+        thangStr: 'Tháng ' + String(m).padStart(2, '0') + '/' + selNam,
+        hasData: true,
+        soNgayBan: soBan,
+        soNgayNghi: soNghi,
+        tm: tTM,
+        ck: tCK,
+        tong: tTong,
+        gtgt: tTong * 0.03,
+        tncn: tTong * 0.015,
+        thue: tTong * 0.045
+      });
+    } else {
+      const mData = data.filter(r => r.ngay && parseInt(r.ngay.split('/')[1], 10) === m);
+      if (mData.length > 0) {
+        const tTM = mData.reduce((s, r) => s + (r.tm || 0), 0);
+        const tCK = mData.reduce((s, r) => s + (r.ck || 0), 0);
+        const tTong = mData.reduce((s, r) => s + (r.tong || 0), 0);
+        const soBan = mData.filter(r => !r.off).length;
+        const soNghi = mData.filter(r => r.off).length;
+
+        grandTM += tTM;
+        grandCK += tCK;
+        grandTong += tTong;
+        grandGTGT += tTong * 0.03;
+        grandTNCN += tTong * 0.015;
+        grandThue += tTong * 0.045;
+        hasAnyData = true;
+
+        monthDetails.push({
+          thang: m,
+          thangStr: 'Tháng ' + String(m).padStart(2, '0') + '/' + selNam,
+          hasData: true,
+          soNgayBan: soBan,
+          soNgayNghi: soNghi,
+          tm: tTM,
+          ck: tCK,
+          tong: tTong,
+          gtgt: tTong * 0.03,
+          tncn: tTong * 0.015,
+          thue: tTong * 0.045
+        });
+      } else {
+        monthDetails.push({
+          thang: m,
+          thangStr: 'Tháng ' + String(m).padStart(2, '0') + '/' + selNam,
+          hasData: false,
+          soNgayBan: 0,
+          soNgayNghi: 0,
+          tm: 0, ck: 0, tong: 0, gtgt: 0, tncn: 0, thue: 0
+        });
+      }
+    }
+  });
+
+  if (!hasAnyData) {
+    toast('Quý này chưa có dữ liệu nào để đóng quý!', 'error');
+    return;
+  }
+
+  const defaultName = 'Quý ' + selQuy + '/' + selNam;
+  const tenQuy = prompt('Đặt tên bản chốt Quý để lưu vào lịch sử:', defaultName);
+  if (!tenQuy) return;
+
+  const quyRec = {
+    id: 'QUY-' + selNam + '-Q' + selQuy,
+    ten: tenQuy.trim(),
+    quy: selQuy,
+    nam: selNam,
+    thangList: monthDetails,
+    tongTM: grandTM,
+    tongCK: grandCK,
+    tongDT: grandTong,
+    thueGTGT: grandGTGT,
+    thueTNCN: grandTNCN,
+    tongThue: grandThue,
+    previewText: document.getElementById('quy_preview_text').textContent,
+    ngayChot: new Date().toLocaleString('vi-VN')
+  };
+
+  const qHistory = getQuarterHistory();
+  const existIdx = qHistory.findIndex(q => q.id === quyRec.id);
+  if (existIdx >= 0) {
+    if (!confirm('Bản chốt "' + qHistory[existIdx].ten + '" đã có trong lịch sử đóng quý. Bạn có muốn cập nhật lại không?')) {
+      return;
+    }
+    qHistory[existIdx] = quyRec;
+  } else {
+    qHistory.push(quyRec);
+  }
+
+  saveQuarterHistory(qHistory);
+  toast('✓ Đã chốt và lưu thành công "' + quyRec.ten + '" vào lịch sử! 🎉', 'success');
+}
+
+function xemLichSuQuy() {
+  const qHistory = getQuarterHistory();
+  const container = document.getElementById('quarter_history_list');
+  if (!qHistory.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="icon">🏛️</div><p>Chưa có Quý nào được đóng và lưu. Bạn bấm nút "Lưu Quý này vào lịch sử" để lưu lại nhé!</p></div>';
+  } else {
+    qHistory.sort((a,b) => (b.nam * 10 + b.quy) - (a.nam * 10 + a.quy));
+    container.innerHTML = qHistory.map(q => {
+      const monthRows = q.thangList.map(m => {
+        if (!m.hasData) return `<div style="color:var(--text3); font-style:italic;">- ${m.thangStr}: [Chưa có dữ liệu]</div>`;
+        return `<div>- <strong>${m.thangStr}</strong> (${m.soNgayBan} ngày bán): TM ${fmtMoneyShort(m.tm)} | CK ${fmtMoneyShort(m.ck)} ➔ DT: <strong style="color:var(--purple);">${(m.tong||0).toLocaleString('vi-VN')}đ</strong> (Thuế: <span style="color:var(--red); font-weight:600;">${(m.thue||0).toLocaleString('vi-VN')}đ</span>)</div>`;
+      }).join('');
+
+      return `
+        <div style="background:var(--surface2); border:1.5px solid #bfdbfe; border-radius:var(--radius); padding:14px 16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:6px;">
+            <div>
+              <strong style="font-size:15px; color:#1e3a5f;">🏛️ ${q.ten}</strong>
+              <span class="badge badge-normal" style="margin-left:6px; background:#dbeafe; color:#1d4ed8;">Năm ${q.nam}</span>
+            </div>
+            <span style="font-size:12px; color:var(--text3);">Chốt lúc: ${q.ngayChot}</span>
+          </div>
+
+          <div style="font-size:12px; color:var(--text2); line-height:1.7; margin-bottom:10px;">
+            ${monthRows}
+          </div>
+
+          <div style="background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; padding:10px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div>
+              <div style="font-size:11px; font-weight:700; color:#991b1b; text-transform:uppercase;">Tổng Doanh Thu Cả Quý:</div>
+              <div style="font-size:16px; font-weight:800; color:#7c3aed;">${(q.tongDT||0).toLocaleString('vi-VN')} đ</div>
+            </div>
+            <div>
+              <div style="font-size:11px; font-weight:700; color:#991b1b; text-transform:uppercase;">Thuế GTGT (3%):</div>
+              <div style="font-size:13px; font-weight:700; color:#b45309;">${(q.thueGTGT||0).toLocaleString('vi-VN')} đ</div>
+            </div>
+            <div>
+              <div style="font-size:11px; font-weight:700; color:#991b1b; text-transform:uppercase;">Thuế TNCN (1.5%):</div>
+              <div style="font-size:13px; font-weight:700; color:#b45309;">${(q.thueTNCN||0).toLocaleString('vi-VN')} đ</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px; font-weight:800; color:#b91c1c; text-transform:uppercase;">TỔNG THUẾ ĐÃ NỘP (4.5%):</div>
+              <div style="font-size:18px; font-weight:900; color:#b91c1c;">${(q.tongThue||0).toLocaleString('vi-VN')} đ</div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+            <button class="btn btn-primary" style="padding:6px 12px; font-size:12px;" onclick="copyBaoCaoQuyTuLichSu('${q.id}')">📋 Copy bản in Quý này</button>
+            <button class="btn btn-ghost" style="padding:6px 12px; font-size:12px;" onclick="moLaiQuyTrenBang(${q.quy}, ${q.nam})">🔍 Mở xem trên bảng</button>
+            <button class="btn btn-red" style="padding:6px 10px; font-size:12px;" onclick="xoaLichSuQuy('${q.id}')">🗑 Xóa bản chốt</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  document.getElementById('quarter_history_modal').classList.add('active');
+}
+
+function hideQuarterHistoryModal() {
+  document.getElementById('quarter_history_modal').classList.remove('active');
+}
+
+function copyBaoCaoQuyTuLichSu(id) {
+  const qHistory = getQuarterHistory();
+  const q = qHistory.find(item => item.id === id);
+  if (!q) return;
+  const txt = q.previewText || '';
+  navigator.clipboard.writeText(txt).then(() => toast('Đã copy báo cáo ' + q.ten + '! Ra Zalo dán nhé 🎉', 'success')).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    toast('Đã copy báo cáo ' + q.ten + '! Ra Zalo dán nhé 🎉', 'success');
+  });
+}
+
+function moLaiQuyTrenBang(quy, nam) {
+  document.getElementById('sel_quy').value = String(quy);
+  document.getElementById('sel_nam').value = String(nam);
+  hideQuarterHistoryModal();
+  renderQuy();
+  toast('Đang hiển thị Quý ' + quy + '/' + nam + ' trên bảng!', 'success');
+}
+
+function xoaLichSuQuy(id) {
+  if (!confirm('Bạn có chắc chắn muốn xóa bản chốt Quý này khỏi lịch sử không?')) return;
+  let qHistory = getQuarterHistory();
+  qHistory = qHistory.filter(q => q.id !== id);
+  saveQuarterHistory(qHistory);
+  xemLichSuQuy();
+  toast('Đã xóa bản chốt Quý khỏi lịch sử!', 'success');
+}
+
+document.getElementById('quarter_history_modal').addEventListener('click', function(e){
+  if(e.target===this) hideQuarterHistoryModal();
+});
 
 // CLOSE MODAL EVENT FOR HISTORY
 document.getElementById('history_modal').addEventListener('click', function(e){
